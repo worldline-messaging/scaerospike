@@ -16,7 +16,7 @@ case class ClientSettings(maxCommandsOutstanding: Int = 500, selectorThreads: In
    */
   private[aerospike] def buildClientPolicy() = {
     val p = new AsyncClientPolicy()
-    p.asyncMaxCommandAction = MaxCommandAction.REJECT
+    p.asyncMaxCommandAction = MaxCommandAction.BLOCK
     p.asyncMaxCommands      = maxCommandsOutstanding
     p.asyncSelectorThreads  = selectorThreads
     p.maxSocketIdle         = maxSocketIdle
@@ -45,13 +45,14 @@ object ReadSettings {
   val Default = ReadSettings()
 }
 
-case class WriteSettings(expiration: Int = 0, timeout: Int = 0, maxRetries: Int = 2, sleepBetweenRetries: Int = 500) {
+case class WriteSettings(expiration: Int = 0, timeout: Int = 0, maxRetries: Int = 2, sleepBetweenRetries: Int = 500, sendKey: Boolean = true) {
   private[aerospike] def buildWritePolicy() = {
     val p = new WritePolicy()
     p.expiration = expiration
     p.timeout = timeout
     p.maxRetries = maxRetries
     p.sleepBetweenRetries = sleepBetweenRetries
+    p.sendKey = sendKey 
     p
   }
 }

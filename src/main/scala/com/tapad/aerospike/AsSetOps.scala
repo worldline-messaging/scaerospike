@@ -1,14 +1,18 @@
 package com.tapad.aerospike
 
 import com.aerospike.client.async.AsyncClient
-import com.aerospike.client.listener.{DeleteListener, WriteListener, RecordListener, RecordArrayListener}
+import com.aerospike.client.listener.{DeleteListener, WriteListener, RecordListener, RecordArrayListener,RecordSequenceListener}
 import com.aerospike.client._
-import com.aerospike.client.policy.QueryPolicy
+import com.aerospike.client.policy._
 
 import scala.concurrent.{Promise, ExecutionContext, Future}
 import com.aerospike.client.{AerospikeException, Key}
 import scala.collection.JavaConverters._
 import scala.collection.breakOut
+
+trait ScanFilter [K, T] {
+	def filter(key: K, record: T): Boolean
+}
 
 /**
  * Operations on an Aerospike set in a namespace.
@@ -37,6 +41,8 @@ trait AsSetOps[K, V] {
    */
   def multiGetBins(keys: Seq[K], bins: Seq[String]): Future[Map[K, Map[String, V]]]
 
+  def multiGetBinsL(keys: Seq[K], bins: Seq[String]): Future[List[(K, Map[String, V])]]
+  
   /**
    * Put a value into a key.
    */
@@ -51,6 +57,14 @@ trait AsSetOps[K, V] {
    * Delete a key.
    */
   def delete(key: K, bin: String = "") : Future[Unit]
+  
+  /**
+   * Scan all a set 
+   * @param bins
+   * @param callback
+   * @return
+   */
+  def scanAllRecords(bins: Seq[String], filter: ScanFilter[K,Map[String, V]]) : Future[List[(K, Map[String, V])]] 
 }
 
 /**
@@ -77,11 +91,13 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     case null => Map.empty
     case rec => {
       val result = Map.newBuilder[String, V]
-      val iter = rec.bins.entrySet().iterator()
-      while (iter.hasNext) {
-        val bin = iter.next()
-        val obj = bin.getValue
-        if (obj != null) result += bin.getKey -> valueMapping.fromStoredObject(obj)
+      if(rec.bins!=null) {
+	      val iter = rec.bins.entrySet().iterator()
+	      while (iter.hasNext) {
+	        val bin = iter.next()
+	        val obj = bin.getValue
+	        if (obj != null) result += bin.getKey -> valueMapping.fromStoredObject(obj)
+	      }
       }
       result.result()
     }
@@ -105,6 +121,7 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     result.future
   }
 
+  
   private[aerospike] def multiQuery[T](policy: QueryPolicy,
                                        keys: Seq[Key],
                                        bins: Seq[String],
@@ -133,6 +150,66 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     result.future
   }
 
+  private[aerospike] def multiQueryL[T](policy: QueryPolicy,
+                                       keys: Seq[Key],
+                                       bins: Seq[String],
+                                       extract: Record => T): Future[List[(K, T)]] = {
+    val result = Promise[List[(K, T)]]()
+    val listener = new RecordArrayListener {
+      def onFailure(exception: AerospikeException): Unit = result.failure(exception)
+
+      def onSuccess(keys: Array[Key], records: Array[Record]): Unit = {
+        var i = 0
+        val size = keys.length
+        val data = List.newBuilder[(K, T)]
+        while (i < size) {
+          val key = keys(i).userKey.getObject.asInstanceOf[K]
+          val value = extract(records(i))
+          data += ((key , value))
+          i += 1
+        }
+        result.success(data.result())
+      }
+    }
+    try {
+      if (bins.isEmpty) client.get(policy, listener, keys.toArray)
+      else client.get(policy, listener, keys.toArray, bins: _*)
+    } catch {
+      case e: Exception => result.failure(e)
+    }
+    result.future
+  }
+  
+  def scanAllRecords(bins: Seq[String], filter: ScanFilter[K,Map[String, V]]) : Future[List[(K, Map[String, V])]] = {
+    val result = Promise[List[(K, Map[String, V])]]()
+    val policy = new ScanPolicy()
+    policy.concurrentNodes = true
+    policy.priority = Priority.HIGH
+    policy.includeBinData = false
+    
+    val listener = new RecordSequenceListener {
+    	val data = List.newBuilder[(K, Map[String, V])] 
+    	def onFailure(exception: AerospikeException) {
+    	  exception.printStackTrace
+          result.failure(exception)
+        }
+    	
+    	def onRecord(key:Key, record:Record) {
+    	  val k = key.userKey.getObject.asInstanceOf[K]
+    	  val value = extractMultiBin(record)
+    	  if(filter.filter(k, value)) {
+            data += ((k , value))
+    	  }
+    	}
+        def onSuccess() {
+          result.success(data.result)
+        }
+    }
+    client.scanAll(policy,listener,namespace,set,bins: _*)
+    
+    result.future
+  }
+    
   def get(key: K, bin: String = ""): Future[Option[V]] = {
     query(queryPolicy, genKey(key), bins = Seq(bin), extractSingleBin(bin, _))
   }
@@ -149,6 +226,10 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     multiQuery(queryPolicy, keys.map(genKey), bins, extractMultiBin)
   }
 
+  def multiGetBinsL(keys: Seq[K], bins: Seq[String]): Future[List[(K, Map[String, V])]] = {
+    multiQueryL(queryPolicy, keys.map(genKey), bins, extractMultiBin)
+  }
+  
   def put(key: K, value: V, bin: String = "", customTtl: Option[Int] = None): Future[Unit] = {
     putBins(key, Map(bin -> value), customTtl)
   }
@@ -169,6 +250,7 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
 
         def onSuccess(key: Key) { result.success(Unit) }
       }
+      //println("putBins key="+genKey(key))
       client.put(policy, listener, genKey(key), bins: _*)
     } catch {
       case e: Exception => result.failure(e)
@@ -194,6 +276,8 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     }
     result.future
   }
+  
+  
 }
 
 

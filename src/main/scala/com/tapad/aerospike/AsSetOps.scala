@@ -4,11 +4,12 @@ import com.aerospike.client.async.AsyncClient
 import com.aerospike.client.listener.{DeleteListener, WriteListener, RecordListener, RecordArrayListener,RecordSequenceListener}
 import com.aerospike.client._
 import com.aerospike.client.policy._
-
 import scala.concurrent.{Promise, ExecutionContext, Future}
 import com.aerospike.client.{AerospikeException, Key}
 import scala.collection.JavaConverters._
 import scala.collection.breakOut
+import scala.collection.generic.CanBuildFrom
+import scala.collection.mutable.Builder
 
 trait ScanFilter [K, T] {
 	def filter(key: K, record: T): Boolean
@@ -53,6 +54,14 @@ trait AsSetOps[K, V] {
    */
   def putBins(key: K, values: Map[String, V], customTtl: Option[Int] = None) : Future[Unit]
 
+  /**
+   * Just change the generation and/or the TTL
+   * @param key
+   * @param customTtl
+   * @return
+   */
+  def touch (key:K,customTtl: Option[Int] = None) : Future[Unit]
+  
     /**
    * Delete a key.
    */
@@ -64,7 +73,8 @@ trait AsSetOps[K, V] {
    * @param callback
    * @return
    */
-  def scanAllRecords(bins: Seq[String], filter: ScanFilter[K,Map[String, V]]) : Future[List[(K, Map[String, V])]] 
+  def scanAllRecords[C[_]](bins: Seq[String], filter: ScanFilter[K,Map[String, V]])
+  	(implicit cbf: CanBuildFrom[C[(K, Map[String, V])], (K, Map[String, V]), C[(K, Map[String, V])]]) : Future[C[(K, Map[String, V])]]
 }
 
 /**
@@ -150,18 +160,20 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     result.future
   }
 
-  private[aerospike] def multiQueryL[T](policy: QueryPolicy,
+  private[aerospike] def multiQueryL[C[_],T](policy: QueryPolicy,
                                        keys: Seq[Key],
                                        bins: Seq[String],
-                                       extract: Record => T): Future[List[(K, T)]] = {
-    val result = Promise[List[(K, T)]]()
+                                       extract: Record => T)
+             (implicit cbf: CanBuildFrom[C[(K, T)], (K, T), C[(K, T)]])
+             : Future[C[(K, T)]] = {
+    val result = Promise[C[(K, T)]]()
     val listener = new RecordArrayListener {
       def onFailure(exception: AerospikeException): Unit = result.failure(exception)
 
       def onSuccess(keys: Array[Key], records: Array[Record]): Unit = {
         var i = 0
         val size = keys.length
-        val data = List.newBuilder[(K, T)]
+        val data = cbf()
         while (i < size) {
           val key = keys(i).userKey.getObject.asInstanceOf[K]
           val value = extract(records(i))
@@ -180,15 +192,16 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     result.future
   }
   
-  def scanAllRecords(bins: Seq[String], filter: ScanFilter[K,Map[String, V]]) : Future[List[(K, Map[String, V])]] = {
-    val result = Promise[List[(K, Map[String, V])]]()
+  def scanAllRecords[C[_]](bins: Seq[String], filter: ScanFilter[K,Map[String, V]])
+  	(implicit cbf: CanBuildFrom[C[(K, Map[String, V])], (K, Map[String, V]), C[(K, Map[String, V])]]): Future[C[(K, Map[String, V])]] = {
+    val result = Promise[C[(K, Map[String, V])]]()
     val policy = new ScanPolicy()
     policy.concurrentNodes = true
     policy.priority = Priority.HIGH
     policy.includeBinData = false
     
     val listener = new RecordSequenceListener {
-    	val data = List.newBuilder[(K, Map[String, V])] 
+    	val data = cbf() 
     	def onFailure(exception: AerospikeException) {
     	  exception.printStackTrace
           result.failure(exception)
@@ -227,7 +240,7 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
   }
 
   def multiGetBinsL(keys: Seq[K], bins: Seq[String]): Future[List[(K, Map[String, V])]] = {
-    multiQueryL(queryPolicy, keys.map(genKey), bins, extractMultiBin)
+    multiQueryL[List,Map[String, V]](queryPolicy, keys.map(genKey), bins, extractMultiBin)
   }
   
   def put(key: K, value: V, bin: String = "", customTtl: Option[Int] = None): Future[Unit] = {
@@ -258,6 +271,27 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     result.future
   }
 
+  def touch (key:K,customTtl: Option[Int] = None) : Future[Unit] = {
+    val policy = customTtl match {
+      case None => writePolicy
+      case Some(ttl) =>
+        val p = writeSettings.buildWritePolicy()
+        p.expiration = ttl
+        p
+    }
+    val result = Promise[Unit]()
+    try {
+      val listener = new RecordListener() {
+        def onFailure(exception: AerospikeException) { exception.printStackTrace();result.failure(exception) }
+    	def onSuccess(key: Key, record: Record) { result.success(Unit) }
+      }
+      client.operate(policy, listener, genKey(key), Operation.touch)
+    } catch {
+      case e: Exception => e.printStackTrace();result.failure(e)
+    }
+    result.future                              		   
+  }
+  
   def delete(key: K, bin: String = ""): Future[Unit] = {
     val result = Promise[Unit]()
     try {

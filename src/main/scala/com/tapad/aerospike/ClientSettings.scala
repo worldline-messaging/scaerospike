@@ -9,14 +9,14 @@ import java.util.concurrent.ExecutorService
  *
  * @param maxCommandsOutstanding the maximum number of outstanding commands before rejections will happen
  */
-case class ClientSettings(maxCommandsOutstanding: Int = 500, selectorThreads: Int = 1, maxSocketIdle : Int = 14, taskThreadPool: ExecutorService = null) {
+case class ClientSettings(maxCommandsOutstanding: Int = 500, selectorThreads: Int = 1, maxSocketIdle : Int = 14, taskThreadPool: ExecutorService = null, blockingMode: Boolean = false) {
 
   /**
    * @return a mutable policy object for the Java client.
    */
   private[aerospike] def buildClientPolicy() = {
     val p = new AsyncClientPolicy()
-    p.asyncMaxCommandAction = MaxCommandAction.BLOCK
+    p.asyncMaxCommandAction = if(blockingMode) MaxCommandAction.BLOCK else MaxCommandAction.REJECT 
     p.asyncMaxCommands      = maxCommandsOutstanding
     p.asyncSelectorThreads  = selectorThreads
     p.maxSocketIdle         = maxSocketIdle

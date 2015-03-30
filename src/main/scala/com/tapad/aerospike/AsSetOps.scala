@@ -61,7 +61,9 @@ trait AsSetOps[K, V] {
    * @return
    */
   def touch (key:K,customTtl: Option[Int] = None) : Future[Unit]
-  
+
+  def getandtouch(key: K,
+               customTtl: Option[Int] = None): Future[Map[String, V]]
     /**
    * Delete a key.
    */
@@ -198,7 +200,7 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     val policy = new ScanPolicy()
     policy.concurrentNodes = true
     policy.priority = Priority.HIGH
-    policy.includeBinData = false
+    policy.includeBinData = bins !=null && bins.size > 0
     
     val listener = new RecordSequenceListener {
     	val data = cbf() 
@@ -292,6 +294,28 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     result.future                              		   
   }
   
+  def getandtouch(key: K,
+               customTtl: Option[Int] = None): Future[Map[String, V]] = {
+    val policy = customTtl match {
+      case None => writePolicy
+      case Some(ttl) =>
+        val p = writeSettings.buildWritePolicy()
+        p.expiration = ttl
+        p
+    }
+    val result = Promise[Map[String, V]]()
+    val listener = new RecordListener {
+      def onFailure(exception: AerospikeException): Unit = result.failure(exception)
+
+      def onSuccess(key: Key, record: Record): Unit = result.success(extractMultiBin(record))
+    }
+    try {
+      client.operate(policy, listener, genKey(key), Operation.touch, Operation.get)
+    } catch {
+      case e: Exception => result.failure(e)
+    }
+    result.future
+  }
   def delete(key: K, bin: String = ""): Future[Unit] = {
     val result = Promise[Unit]()
     try {

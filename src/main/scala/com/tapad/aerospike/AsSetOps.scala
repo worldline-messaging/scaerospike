@@ -279,6 +279,7 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
       case Some(ttl) =>
         val p = writeSettings.buildWritePolicy()
         p.expiration = ttl
+        p.commitLevel = CommitLevel.COMMIT_MASTER //optimization! will be replicated later
         p
     }
     val result = Promise[Unit]()
@@ -301,6 +302,7 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
       case Some(ttl) =>
         val p = writeSettings.buildWritePolicy()
         p.expiration = ttl
+        p.commitLevel = CommitLevel.COMMIT_MASTER //optimization! will be replicated later
         p
     }
     val result = Promise[Map[String, V]]()

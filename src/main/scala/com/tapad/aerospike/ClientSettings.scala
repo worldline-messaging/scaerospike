@@ -3,6 +3,7 @@ package com.tapad.aerospike
 import com.aerospike.client.async.{MaxCommandAction, AsyncClientPolicy}
 import com.aerospike.client.policy.{WritePolicy, QueryPolicy}
 import java.util.concurrent.ExecutorService
+import com.aerospike.client.policy.CommitLevel
 
 /**
  * Aerospike client settings.
@@ -45,14 +46,15 @@ object ReadSettings {
   val Default = ReadSettings()
 }
 
-case class WriteSettings(expiration: Int = 0, timeout: Int = 0, maxRetries: Int = 2, sleepBetweenRetries: Int = 500, sendKey: Boolean = true) {
+case class WriteSettings(expiration: Int = 0, timeout: Int = 0, maxRetries: Int = 2, sleepBetweenRetries: Int = 500, sendKey: Boolean = true, commitAll: Boolean = true) {
   private[aerospike] def buildWritePolicy() = {
     val p = new WritePolicy()
     p.expiration = expiration
     p.timeout = timeout
     p.maxRetries = maxRetries
     p.sleepBetweenRetries = sleepBetweenRetries
-    p.sendKey = sendKey 
+    p.sendKey = sendKey
+    if(commitAll) p.commitLevel = CommitLevel.COMMIT_ALL else p.commitLevel = CommitLevel.COMMIT_MASTER 
     p
   }
 }

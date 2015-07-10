@@ -22,10 +22,10 @@ object Scaerospike extends Build {
 
 
 object Config {
-  val tapadNexus = "Scala Tools Nexus" at "http://nexus.tapad.com:8080/nexus/content/groups/aggregate/"
+  val kazanNexus = "Kazan Nexus" at "http://kazan.priv.atos.fr/nexus/content/repositories/releases/"
   lazy val publishToNexus = Seq(
     publishTo <<= (version) { version: String =>
-      val nexus = "http://nexus.tapad.com:8080/nexus/content/repositories/"
+      val nexus = "http://kazan.priv.atos.fr/nexus/content/repositories/"
       if (version.trim.endsWith("SNAPSHOT") || version.trim.endsWith("TAPAD"))
         Some("snapshots" at (nexus + "snapshots/"))
       else
@@ -35,12 +35,12 @@ object Config {
     publishArtifact in Test := false,
     pomIncludeRepository := { _ => false }
   )
-
+  
   val buildSettings = Defaults.defaultSettings ++ releaseSettings ++ publishToNexus ++ Seq(
     organization := "com.tapad",
     scalaVersion := "2.11.1",
     crossScalaVersions := Seq("2.9.3", "2.10.4", "2.11.1"),
-    resolvers += tapadNexus,
+    resolvers += kazanNexus,
     publishArtifact in(Compile, packageDoc) := false
   )
 }

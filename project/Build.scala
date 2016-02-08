@@ -12,7 +12,7 @@ object Scaerospike extends Build {
       	organization := "com.tapad.scaerospike"
       ) ++ Seq(libraryDependencies ++=
         Seq(
-          "com.aerospike" % "aerospike-client" % "3.1.1",
+          "com.aerospike" % "aerospike-client" % "3.1.8",
           "io.netty" % "netty-buffer" % "4.0.23.Final",
           "org.scalatest" %% "scalatest" % (if (scalaVersion.value.startsWith("2.9.")) "1.9.2" else "2.2.0") % "test"
         )
@@ -38,8 +38,8 @@ object Config {
   
   val buildSettings = Defaults.defaultSettings ++ releaseSettings ++ publishToNexus ++ Seq(
     organization := "com.tapad",
-    scalaVersion := "2.11.1",
-    crossScalaVersions := Seq("2.9.3", "2.10.4", "2.11.1"),
+    scalaVersion := "2.11.7",
+    crossScalaVersions := Seq("2.9.3", "2.10.4", "2.11.7"),
     resolvers += kazanNexus,
     publishArtifact in(Compile, packageDoc) := false
   )

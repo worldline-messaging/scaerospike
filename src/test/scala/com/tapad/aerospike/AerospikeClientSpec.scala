@@ -36,7 +36,5 @@ object AerospikeClientSpec {
 
     Thread.sleep(1000000)
 
-
-
   }
 }

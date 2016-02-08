@@ -10,6 +10,7 @@ import scala.collection.JavaConverters._
 import scala.collection.breakOut
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.Builder
+import java.util.{List => jList}
 
 trait ScanFilter [K, T] {
 	def filter(key: K, record: T): Boolean
@@ -77,6 +78,14 @@ trait AsSetOps[K, V] {
    */
   def scanAllRecords[C[_]](bins: Seq[String], filter: ScanFilter[K,Map[String, V]])
   	(implicit cbf: CanBuildFrom[C[(K, Map[String, V])], (K, Map[String, V]), C[(K, Map[String, V])]]) : Future[C[(K, Map[String, V])]]
+
+  //Aerospike methods for the Large List management are synchronous.
+  //To keep things simple & optimized, we continue to use the java.util.List returned by the java API.
+  //Do not reconstruct a Scala list from the java list. The number of elements inside a large list can be very big.
+  def readLargeList (key: K, bin: String) : Option[jList[V]]
+
+  def writeLargeList (key: K, bin: String, list:jList[V]): Unit
+
 }
 
 /**
@@ -318,6 +327,7 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     }
     result.future
   }
+
   def delete(key: K, bin: String = ""): Future[Unit] = {
     val result = Promise[Unit]()
     try {
@@ -337,7 +347,20 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     result.future
   }
   
+  def readLargeList (key: K, bin: String) : Option[jList[V]] = { 
+    val largeList = client.getLargeList(writePolicy, genKey(key), bin)
+    if(largeList.size() > 0) { //Size method does not create the list on the server
+      Some(largeList.scan().asInstanceOf[jList[V]])
+    } else 
+      None    
+  }
   
+  def writeLargeList (key: K, bin: String, list:jList[V]): Unit = {
+    if(list.size() > 0) {
+      val largeList = client.getLargeList(writePolicy, genKey(key), bin)
+      largeList.add(list)
+    }
+  }
 }
 
 

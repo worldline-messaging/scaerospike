@@ -22,14 +22,14 @@ object Scaerospike extends Build {
 
 
 object Config {
-  val kazanNexus = "Kazan Nexus" at "http://kazan.priv.atos.fr/nexus/content/repositories/releases/"
+  val kazanNexus = "Bintray API Realm" at "https://api.bintray.com/maven/worldline-messaging-org/maven/"
   lazy val publishToNexus = Seq(
     publishTo <<= (version) { version: String =>
-      val nexus = "http://kazan.priv.atos.fr/nexus/content/repositories/"
+      val nexus = "https://api.bintray.com/maven/worldline-messaging-org/maven/scaerospike"
       if (version.trim.endsWith("SNAPSHOT") || version.trim.endsWith("TAPAD"))
-        Some("snapshots" at (nexus + "snapshots/"))
+        Some("snapshots" at (nexus ))
       else
-        Some("releases" at (nexus + "releases/"))
+        Some("releases" at (nexus ))
     },
     publishMavenStyle := true,
     publishArtifact in Test := false,

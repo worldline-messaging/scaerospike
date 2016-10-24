@@ -4,6 +4,7 @@ import com.aerospike.client.async.{MaxCommandAction, AsyncClientPolicy}
 import com.aerospike.client.policy.{WritePolicy, QueryPolicy}
 import java.util.concurrent.ExecutorService
 import com.aerospike.client.policy.CommitLevel
+import com.aerospike.client.policy.BatchPolicy
 
 /**
  * Aerospike client settings.
@@ -32,6 +33,13 @@ object ClientSettings {
 
 
 case class ReadSettings(timeout: Int = 0, maxRetries: Int = 2, sleepBetweenRetries: Int = 500, maxConcurrentNodes: Int = 0) {
+  private[aerospike] def buildBatchPolicy() = {
+    val p = new BatchPolicy()
+    p.timeout             = timeout
+    p.maxRetries          = maxRetries
+    p.sleepBetweenRetries = sleepBetweenRetries
+    p
+  }
   private[aerospike] def buildQueryPolicy() = {
     val p = new QueryPolicy()
     p.timeout             = timeout

@@ -99,6 +99,7 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
                                     (implicit keyGen: KeyGenerator[K], valueMapping: ValueMapping[V], executionContext: ExecutionContext) extends AsSetOps[K, V] {
 
   private final val queryPolicy = readSettings.buildQueryPolicy()
+  private final val batchPolicy = readSettings.buildBatchPolicy()
   private final val writePolicy = writeSettings.buildWritePolicy()
 
   val genKey = keyGen(namespace, set, (_: K))
@@ -143,7 +144,7 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
   }
 
   
-  private[aerospike] def multiQuery[T](policy: QueryPolicy,
+  private[aerospike] def multiQuery[T](policy: BatchPolicy,
                                        keys: Seq[Key],
                                        bins: Seq[String],
                                        extract: Record => T): Future[Map[K, T]] = {
@@ -171,7 +172,7 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     result.future
   }
 
-  private[aerospike] def multiQueryL[C[_],T](policy: QueryPolicy,
+  private[aerospike] def multiQueryL[C[_],T](policy: BatchPolicy,
                                        keys: Seq[Key],
                                        bins: Seq[String],
                                        extract: Record => T)
@@ -243,15 +244,15 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
   }
 
   def multiGet(keys: Seq[K], bin: String = ""): Future[Map[K, Option[V]]] = {
-    multiQuery(queryPolicy, keys.map(genKey), bins = Seq(bin), extractSingleBin(bin, _))
+    multiQuery(batchPolicy, keys.map(genKey), bins = Seq(bin), extractSingleBin(bin, _))
   }
 
   def multiGetBins(keys: Seq[K], bins: Seq[String]): Future[Map[K, Map[String, V]]] = {
-    multiQuery(queryPolicy, keys.map(genKey), bins, extractMultiBin)
+    multiQuery(batchPolicy, keys.map(genKey), bins, extractMultiBin)
   }
 
   def multiGetBinsL(keys: Seq[K], bins: Seq[String]): Future[List[(K, Map[String, V])]] = {
-    multiQueryL[List,Map[String, V]](queryPolicy, keys.map(genKey), bins, extractMultiBin)
+    multiQueryL[List,Map[String, V]](batchPolicy, keys.map(genKey), bins, extractMultiBin)
   }
   
   def put(key: K, value: V, bin: String = "", customTtl: Option[Int] = None): Future[Unit] = {

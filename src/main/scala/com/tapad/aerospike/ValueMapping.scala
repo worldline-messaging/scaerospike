@@ -2,7 +2,6 @@ package com.tapad.aerospike
 
 import com.aerospike.client.Value
 import com.aerospike.client.Value.{ByteSegmentValue, BytesValue}
-import io.netty.buffer.{ByteBuf, Unpooled}
 
 /*
  * Defines a mapping to the Aerospike "Values" and from the stored object to a representation the client can work with.
@@ -19,15 +18,5 @@ object DefaultValueMappings {
   implicit val byteArrayMapping = new ValueMapping[Array[Byte]] {
     def toAerospikeValue(arr: Array[Byte]) = new BytesValue(arr)
     def fromStoredObject(v: Object): Array[Byte] = v.asInstanceOf[Array[Byte]]
-  }
-  implicit val byteBufMapping = new ValueMapping[ByteBuf] {
-    def toAerospikeValue(buf: ByteBuf) =
-      if (buf.hasArray) new ByteSegmentValue(buf.array, buf.arrayOffset + buf.readerIndex, buf.readableBytes)
-      else {
-        val arr = new Array[Byte](buf.readableBytes)
-        buf.readBytes(arr)
-        new BytesValue(arr)
-      }
-    def fromStoredObject(v: Object): ByteBuf = Unpooled.wrappedBuffer(v.asInstanceOf[Array[Byte]])
   }
 }

@@ -1,19 +1,24 @@
 package com.tapad.aerospike
 
 import com.aerospike.client.async.AsyncClient
-import com.aerospike.client.listener.{DeleteListener, WriteListener, RecordListener, RecordArrayListener,RecordSequenceListener}
+import com.aerospike.client.listener.{DeleteListener, RecordArrayListener, RecordListener, RecordSequenceListener, WriteListener}
 import com.aerospike.client._
 import com.aerospike.client.policy._
-import scala.concurrent.{Promise, ExecutionContext, Future}
+
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import com.aerospike.client.{AerospikeException, Key}
-import scala.collection.JavaConverters._
-import scala.collection.breakOut
+
+import scala.collection.{breakOut}
 import scala.collection.generic.CanBuildFrom
-import scala.collection.mutable.Builder
 import java.util.{List => jList}
 
-trait ScanFilter [K, T] {
-	def filter(key: K, record: T): Boolean
+trait AsRecordListener[K, V]  {
+  @throws[AerospikeException]
+  def onRecord(key: K, record: Map[String,V])
+
+  def onSuccess()
+
+  def onFailure(exception: AerospikeException)
 }
 
 /**
@@ -70,14 +75,7 @@ trait AsSetOps[K, V] {
    */
   def delete(key: K, bin: String = "") : Future[Unit]
   
-  /**
-   * Scan all a set 
-   * @param bins
-   * @param callback
-   * @return
-   */
-  def scanAllRecords[C[_]](bins: Seq[String], filter: ScanFilter[K,Map[String, V]])
-  	(implicit cbf: CanBuildFrom[C[(K, Map[String, V])], (K, Map[String, V]), C[(K, Map[String, V])]]) : Future[C[(K, Map[String, V])]]
+  def scanRecords(bins: Seq[String], listener: AsRecordListener[K,V], priority:Priority = Priority.DEFAULT): Unit
 
   //Aerospike methods for the Large List management are synchronous.
   //To keep things simple & optimized, we continue to use the java.util.List returned by the java API.
@@ -203,36 +201,39 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     }
     result.future
   }
-  
-  def scanAllRecords[C[_]](bins: Seq[String], filter: ScanFilter[K,Map[String, V]])
-  	(implicit cbf: CanBuildFrom[C[(K, Map[String, V])], (K, Map[String, V]), C[(K, Map[String, V])]]): Future[C[(K, Map[String, V])]] = {
-    val result = Promise[C[(K, Map[String, V])]]()
+
+  def scanRecords(bins: Seq[String], listener: AsRecordListener[K,V], priority:Priority = Priority.DEFAULT): Unit = {
     val policy = new ScanPolicy()
     policy.concurrentNodes = true
-    policy.priority = Priority.HIGH
+    policy.priority = priority
     policy.includeBinData = bins !=null && bins.size > 0
-    
-    val listener = new RecordSequenceListener {
-    	val data = cbf() 
-    	def onFailure(exception: AerospikeException) {
-    	  exception.printStackTrace
-          result.failure(exception)
-        }
-    	
-    	def onRecord(key:Key, record:Record) {
-    	  val k = key.userKey.getObject.asInstanceOf[K]
-    	  val value = extractMultiBin(record)
-    	  if(filter.filter(k, value)) {
-            data += ((k , value))
-    	  }
-    	}
-        def onSuccess() {
-          result.success(data.result)
-        }
+
+    val asListener = new RecordSequenceListener {
+      @throws[AerospikeException]
+      def onRecord(key: Key, record: Record): Unit = {
+        val row = extractMultiBin(record)
+        val k = key.userKey.getObject.asInstanceOf[K]
+        listener.onRecord(k, row)
+      }
+
+      /**
+        * This method is called when the asynchronous batch get or scan command completes.
+        */
+      def onSuccess(): Unit = {
+        listener.onSuccess()
+      }
+
+      /**
+        * This method is called when an asynchronous batch get or scan command fails.
+        *
+        * @param exception error that occurred
+        */
+      def onFailure(exception: AerospikeException): Unit = {
+        listener.onFailure(exception)
+      }
     }
-    client.scanAll(policy,listener,namespace,set,bins: _*)
-    
-    result.future
+    client.scanAll(policy,asListener,namespace,set,bins: _*)
+
   }
     
   def get(key: K, bin: String = ""): Future[Option[V]] = {

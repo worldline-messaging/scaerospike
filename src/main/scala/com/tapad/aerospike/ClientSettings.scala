@@ -35,14 +35,16 @@ object ClientSettings {
 case class ReadSettings(timeout: Int = 0, maxRetries: Int = 2, sleepBetweenRetries: Int = 500, maxConcurrentNodes: Int = 0) {
   private[aerospike] def buildBatchPolicy() = {
     val p = new BatchPolicy()
-    p.timeout             = timeout
+    p.totalTimeout        = timeout
+    p.socketTimeout       = timeout
     p.maxRetries          = maxRetries
     p.sleepBetweenRetries = sleepBetweenRetries
     p
   }
   private[aerospike] def buildQueryPolicy() = {
     val p = new QueryPolicy()
-    p.timeout             = timeout
+    p.totalTimeout        = timeout
+    p.socketTimeout       = timeout
     p.maxRetries          = maxRetries
     p.sleepBetweenRetries = sleepBetweenRetries
     p.maxConcurrentNodes  = maxConcurrentNodes
@@ -58,7 +60,8 @@ case class WriteSettings(expiration: Int = 0, timeout: Int = 0, maxRetries: Int 
   private[aerospike] def buildWritePolicy() = {
     val p = new WritePolicy()
     p.expiration = expiration
-    p.timeout = timeout
+    p.totalTimeout        = timeout
+    p.socketTimeout       = timeout
     p.maxRetries = maxRetries
     p.sleepBetweenRetries = sleepBetweenRetries
     p.sendKey = sendKey

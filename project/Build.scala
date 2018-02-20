@@ -1,8 +1,6 @@
+import sbt.Keys._
 import sbt._
-import Keys._
 import sbtrelease.ReleasePlugin._
-import sbtrelease._
-import ReleaseStateTransformations._
 
 object Scaerospike extends Build {
 
@@ -12,7 +10,7 @@ object Scaerospike extends Build {
       	organization := "com.tapad.scaerospike"
       ) ++ Seq(libraryDependencies ++=
         Seq(
-          "com.aerospike" % "aerospike-client" % "latest.integration",
+          "com.aerospike" % "aerospike-client" % "4.0.8",
           "org.scalatest" %% "scalatest" % "3.0.1" % "test"
         )
       )

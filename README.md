@@ -2,7 +2,7 @@
 
 ## Intro
 
-Scaerospike is a Scala wrapper around the Aerospike 3.x series asynchronous Java client. It uses the Scala 2.10 Futures
+Scaerospike is a Scala wrapper around the Aerospike 4.x series asynchronous Java client. It uses the Scala 2.10 Futures
 API.
 
 ## Getting started

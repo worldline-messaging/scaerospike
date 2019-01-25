@@ -12,7 +12,7 @@ object Scaerospike extends Build {
       	organization := "com.tapad.scaerospike"
       ) ++ Seq(libraryDependencies ++=
         Seq(
-          "com.aerospike" % "aerospike-client" % "4.0.8",
+          "com.aerospike" % "aerospike-client" % "4.2.3",
           "org.scalatest" %% "scalatest" % "3.0.1" % "test"
         )
       )

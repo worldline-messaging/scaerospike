@@ -1,7 +1,8 @@
 package com.tapad.aerospike
 
 import com.aerospike.client.Value
-import com.aerospike.client.Value.{ByteSegmentValue, BytesValue}
+import com.aerospike.client.Value.{ByteSegmentValue, BytesValue, ListValue}
+import java.util.{List ⇒ jList}
 
 /*
  * Defines a mapping to the Aerospike "Values" and from the stored object to a representation the client can work with.
@@ -18,5 +19,10 @@ object DefaultValueMappings {
   implicit val byteArrayMapping = new ValueMapping[Array[Byte]] {
     def toAerospikeValue(arr: Array[Byte]) = new BytesValue(arr)
     def fromStoredObject(v: Object): Array[Byte] = v.asInstanceOf[Array[Byte]]
+  }
+
+  implicit val StringJListMappung = new ValueMapping[jList[String]] {
+    override def toAerospikeValue(t: jList[String]): Value = new ListValue(t)
+    override def fromStoredObject(v: Object): jList[String] = v.asInstanceOf[jList[String]]
   }
 }

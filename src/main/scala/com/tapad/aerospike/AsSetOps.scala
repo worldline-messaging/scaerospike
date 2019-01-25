@@ -77,13 +77,6 @@ trait AsSetOps[K, V] {
   
   def scanRecords(bins: Seq[String], listener: AsRecordListener[K,V], priority:Priority = Priority.DEFAULT): Unit
 
-  //Aerospike methods for the Large List management are synchronous.
-  //To keep things simple & optimized, we continue to use the java.util.List returned by the java API.
-  //Do not reconstruct a Scala list from the java list. The number of elements inside a large list can be very big.
-  def readLargeList (key: K, bin: String) : Option[jList[V]]
-
-  def writeLargeList (key: K, bin: String, list:jList[V]): Unit
-
 }
 
 /**
@@ -348,21 +341,7 @@ private[aerospike] class AsSet[K, V](private final val client: AsyncClient,
     }
     result.future
   }
-  
-  def readLargeList (key: K, bin: String) : Option[jList[V]] = { 
-    val largeList = client.getLargeList(writePolicy, genKey(key), bin)
-    if(largeList.size() > 0) { //Size method does not create the list on the server
-      Some(largeList.scan().asInstanceOf[jList[V]])
-    } else 
-      None    
-  }
-  
-  def writeLargeList (key: K, bin: String, list:jList[V]): Unit = {
-    if(list.size() > 0) {
-      val largeList = client.getLargeList(writePolicy, genKey(key), bin)
-      largeList.add(list)
-    }
-  }
+
 }
 
 
